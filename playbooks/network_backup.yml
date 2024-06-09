@@ -1,0 +1,86 @@
+---
+- name: Retrieve network configurations
+  hosts: "{{ hosts }}"
+  gather_facts: False
+
+  pre_tasks:
+
+    - name: Create temporary file
+      ansible.builtin.tempfile:
+         state: file
+         suffix: failed
+      register: failed_host_list
+      run_once: true
+      delegate_to: localhost
+
+    - name: Check if device will be excluded and log the result
+      ansible.builtin.shell: |
+        echo "{{ inventory_hostname }} reason: device platform not available in NetBox or not supported" >> "{{ failed_host_list.path }}"
+      when: hostvars[inventory_hostname].ansible_network_os is not defined or hostvars[inventory_hostname].ansible_network_os not in supported_platforms
+      delegate_to: localhost
+
+    - name: Create a directory if it does not exist
+      ansible.builtin.file:
+        path: "/backup/{{ sites | first }}/{{ device_roles | first }}"
+        state: directory
+        mode: "0755"
+      when: backupinfo is defined
+      delegate_to: localhost
+      
+
+  tasks:
+  
+
+    - name: Backup configuration
+      ansible.builtin.include_role:
+        name: "../roles/backup"
+      when: 
+        - ansible_network_os is defined
+
+    - name: Save configuration to backup folder
+      ansible.builtin.copy:
+        src: "{{ config_output.backup_path }}"
+        dest: "/backup/{{ sites | first }}/{{ device_roles | first }}/"
+        mode: "644"
+      when: config_output is defined
+      delegate_to: localhost
+
+
+#    - name: setting up backup folder and init git
+#      ansible.builtin.include_role:
+#      ansible.builtin.import_role:  
+#        name: "../roles/setup"
+#      run_once: true               
+#      delegate_to: localhost
+#
+    - name: Backup configuration
+      ansible.builtin.import_tasks:
+#      ansible.builtin.include_role:
+        file: "upload.yml"
+      run_once: true
+      delegate_to: localhost
+    
+    - name: set content
+      ansible.builtin.set_fact:
+        file_content: "{{ lookup('file', failed_host_list.path) }}"
+      run_once: true
+      delegate_to: localhost    
+
+
+    - name: debug
+      ansible.builtin.debug:
+        msg: "{{ file_content }}"
+      run_once: true
+      delegate_to: localhost
+
+    - name: Backup configuration
+      ansible.builtin.include_role:
+        name: "../roles/notify"  
+      run_once: true   
+
+    - ansible.builtin.set_stats:
+        data:
+          failed_hosts_file: "{{ file_content }}"  
+      run_once: true
+      delegate_to: localhost  
+      

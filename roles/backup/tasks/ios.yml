@@ -1,0 +1,23 @@
+# This task will setup how ansible should connect to ios
+- name: define connection  method for ios moduke
+  ansible.builtin.set_fact:
+    ansible_connection: ansible.netcommon.network_cli
+    ansible_user: mobin
+    ansible_password: cisco
+    
+# This task will backup the configuration
+- name: Backup cisco ios configuration
+  cisco.ios.ios_config:
+    backup: true
+    backup_options:
+      dir_path: /tmp/
+      filename: "{{ inventory_hostname }}.txt"
+  register: config_output
+
+# This task removes the Current configuration... from the top of IOS routers show run
+- name: Remove non config lines - regexp
+  ansible.builtin.lineinfile:
+    path: "{{ config_output.backup_path }}"
+    line: "Building configuration..."
+    state: absent
+  delegate_to: localhost

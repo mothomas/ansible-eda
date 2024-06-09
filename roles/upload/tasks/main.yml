@@ -1,0 +1,37 @@
+---
+- name: Create time stamp for play
+  ansible.builtin.set_fact:
+     datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M') }}"
+#  delegate_to: localhost
+
+- name: Synchronize Backup folder with backup repo
+  ansible.posix.synchronize:
+    src: /backup
+    dest: "/{{ git_temp_dir.path }}/git"
+    delete: true
+    recursive: true
+    compress: false
+    rsync_opts:
+      - "--exclude=.git"
+#  delegate_to: localhost
+
+- name: Upload | Git add the latest backup
+  ansible.builtin.shell: |
+    pwd && ls -lRh
+    git add .
+  args:
+    chdir: "{{ git_temp_dir.path }}/git"
+#  delegate_to: localhost
+
+- name: Upload | Git commit the latest backup
+    git commit -m "Backup on: {{ datetime }} AAP JOB: {{ tower_job_id }}"
+  args:
+    chdir: "{{ git_temp_dir.path }}/git"
+ # delegate_to: localhost
+
+- name: Upload | git push the backup to main
+  ansible.builtin.shell: git push --force
+  args:
+    chdir: "{{ git_temp_dir.path }}/git"    
+  delegate_to: localhost
+
